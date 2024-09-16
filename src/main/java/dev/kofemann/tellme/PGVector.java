@@ -39,8 +39,12 @@ public class PGVector {
             javaLangParser.embed(embeddingStore, embeddingModel);
 
             // query for code in natural language
-            Embedding queryEmbedding = embeddingModel.embed("create nfsv41 session").content();
+            String question = "create nfsv41 session";
+            Embedding queryEmbedding = embeddingModel.embed(question).content();
             List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 4);
+
+            System.out.println("Question: " + question);
+            System.out.println("Answer: ");
 
             if (relevant.isEmpty()) {
                 System.out.println("No relevant embeddings found");
@@ -52,7 +56,7 @@ public class PGVector {
                         0.8229844945934887 : org.dcache.nfs.v4.OperationDESTROY_SESSION#process
                         0.812421753983918 : org.dcache.nfs.v4.CompoundBuilder#withDestroysession
                      */
-                    System.out.println(embeddingMatch.score() + " : " + embeddingMatch.embedded().text());
+                    System.out.println("  " + embeddingMatch.score() + " : " + embeddingMatch.embedded().text());
                 });
             }
             postgreSQLContainer.stop();

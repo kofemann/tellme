@@ -23,6 +23,15 @@ import java.util.Properties;
 
 public class Tellme {
 
+    private final static String[][] COMMANDS = {
+            {"\\h|\\?", "Show this help"},
+            {"\\q    ", "Exit the application"},
+            {"\\t    ", "Set the threshold for the relevance score"},
+            {"\\e    ", "Set the number of results"},
+    };
+
+
+
     public static void main(String[] args) throws IOException {
 
         Properties properties = new Properties();
@@ -51,16 +60,46 @@ public class Tellme {
         String question;
 
         double threshold = 0.7;
+        int results = 1;
 
         String prompt = new AttributedString("tellme> ", AttributedStyle.DEFAULT.bold()).toAnsi();
         while ((question = reader.readLine(prompt)) != null) {
-            question = question.trim();
+            question = question.strip();
             if (question.isEmpty()) {
                 continue;
             }
 
+            switch (question) {
+                case "h":
+                case "?":
+                    for (String[] command : COMMANDS) {
+                        terminal.writer().println(command[0] + " : " + command[1]);
+                    }
+                    terminal.flush();
+                    continue;
+                case "q":
+                    terminal.writer().println("Goodbye!");
+                    break;
+                case "t":
+                    String thresholdStr = reader.readLine("Enter the threshold: ");
+                    try {
+                        threshold = Double.parseDouble(thresholdStr);
+                    } catch (NumberFormatException e) {
+                        terminal.writer().println("Invalid threshold value");
+                    }
+                    continue;
+                case "e":
+                    String resultsStr = reader.readLine("Enter the number of results: ");
+                    try {
+                        results = Integer.parseInt(resultsStr);
+                    } catch (NumberFormatException e) {
+                        terminal.writer().println("Invalid results value");
+                    }
+                    continue;
+            }
+
             Embedding queryEmbedding = embeddingModel.embed(question).content();
-            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, 4);
+            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, results);
 
 
             if (relevant.isEmpty() || relevant.get(0).score() < threshold) {
@@ -68,7 +107,8 @@ public class Tellme {
                         AttributedStyle.DEFAULT.foreground(AttributedStyle.RED).bold());
                 terminal.writer().println(as.toAnsi());
             } else {
-                relevant.stream().filter(e -> e.score() >= threshold).forEach(embeddingMatch -> {
+                double t = threshold;
+                relevant.stream().filter(e -> e.score() >= t).forEach(embeddingMatch -> {
                     AttributedString as = new AttributedString("Score: " + embeddingMatch.score() + "\n",
                             AttributedStyle.DEFAULT.foreground(AttributedStyle.BLUE).bold());
                     terminal.writer().println(as.toAnsi());
@@ -79,5 +119,8 @@ public class Tellme {
             terminal.flush();
         }
 
+        terminal.flush();
+        terminal.close();
+        System.exit(0);
     }
 }

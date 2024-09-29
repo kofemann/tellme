@@ -16,7 +16,6 @@ import org.jline.terminal.TerminalBuilder;
 import org.jline.utils.AttributedString;
 import org.jline.utils.AttributedStyle;
 
-import javax.sql.RowSetReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.util.List;

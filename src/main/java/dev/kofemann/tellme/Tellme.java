@@ -5,6 +5,7 @@ import dev.langchain4j.data.segment.TextSegment;
 import dev.langchain4j.model.embedding.EmbeddingModel;
 import dev.langchain4j.model.embedding.onnx.allminilml6v2.AllMiniLmL6V2EmbeddingModel;
 import dev.langchain4j.store.embedding.EmbeddingMatch;
+import dev.langchain4j.store.embedding.EmbeddingSearchRequest;
 import dev.langchain4j.store.embedding.EmbeddingStore;
 import dev.langchain4j.store.embedding.pgvector.PgVectorEmbeddingStore;
 import org.jboss.forge.roaster.Roaster;
@@ -29,8 +30,6 @@ public class Tellme {
             {"\\t    ", "Set the threshold for the relevance score"},
             {"\\e    ", "Set the number of results"},
     };
-
-
 
     public static void main(String[] args) throws IOException {
 
@@ -61,9 +60,11 @@ public class Tellme {
 
         double threshold = 0.7;
         int results = 1;
+        boolean quit = false;
 
         String prompt = new AttributedString("tellme> ", AttributedStyle.DEFAULT.bold()).toAnsi();
-        while ((question = reader.readLine(prompt)) != null) {
+
+  while (!quit && (question = reader.readLine(prompt)) != null) {
             question = question.strip();
             if (question.isEmpty()) {
                 continue;
@@ -76,9 +77,10 @@ public class Tellme {
                         terminal.writer().println(command[0] + " : " + command[1]);
                     }
                     terminal.flush();
-                    continue;
+                    break;
                 case "q":
                     terminal.writer().println("Goodbye!");
+                    quit = true;
                     break;
                 case "t":
                     String thresholdStr = reader.readLine("Enter the threshold: ");
@@ -95,28 +97,32 @@ public class Tellme {
                     } catch (NumberFormatException e) {
                         terminal.writer().println("Invalid results value");
                     }
-                    continue;
+                    break;
+                default:
+                    // treat as query
+                    Embedding queryEmbedding = embeddingModel.embed(question).content();
+                    EmbeddingSearchRequest embeddingSearchRequest = EmbeddingSearchRequest.builder()
+                            .queryEmbedding(queryEmbedding)
+                            .maxResults(results)
+                            .minScore(threshold)
+                            .build();
+
+                    List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.search(embeddingSearchRequest).matches();
+
+                    if (relevant.isEmpty()) {
+                        AttributedString as = new AttributedString("No relevant embeddings found",
+                                AttributedStyle.DEFAULT.foreground(AttributedStyle.RED).bold());
+                        terminal.writer().println(as.toAnsi());
+                    } else {
+                        relevant.forEach(embeddingMatch -> {
+                            AttributedString as = new AttributedString("Score: " + embeddingMatch.score() + "\n",
+                                    AttributedStyle.DEFAULT.foreground(AttributedStyle.BLUE).bold());
+                            terminal.writer().println(as.toAnsi());
+                            terminal.writer().println(" : " + Roaster.format(embeddingMatch.embedded().text()));
+                        });
+                    }
+                    terminal.flush();
             }
-
-            Embedding queryEmbedding = embeddingModel.embed(question).content();
-            List<EmbeddingMatch<TextSegment>> relevant = embeddingStore.findRelevant(queryEmbedding, results);
-
-
-            if (relevant.isEmpty() || relevant.get(0).score() < threshold) {
-                AttributedString as = new AttributedString("No relevant embeddings found",
-                        AttributedStyle.DEFAULT.foreground(AttributedStyle.RED).bold());
-                terminal.writer().println(as.toAnsi());
-            } else {
-                double t = threshold;
-                relevant.stream().filter(e -> e.score() >= t).forEach(embeddingMatch -> {
-                    AttributedString as = new AttributedString("Score: " + embeddingMatch.score() + "\n",
-                            AttributedStyle.DEFAULT.foreground(AttributedStyle.BLUE).bold());
-                    terminal.writer().println(as.toAnsi());
-                    terminal.writer().println(" : " + Roaster.format(embeddingMatch.embedded().text()));
-                });
-            }
-
-            terminal.flush();
         }
 
         terminal.flush();
